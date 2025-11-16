@@ -23,6 +23,7 @@ export class Player {
         this.pixelY = 0;
         this.targetX = 0;
         this.targetY = 0;
+        this.path = []; // Path for A* movement
         
         this.isPositioned = false; // Flag to track initialization
 
@@ -111,6 +112,7 @@ export class Player {
             energyTimestamps: this.energyTimestamps, // Store timestamps
             pixelX: this.pixelX,
             pixelY: this.pixelY,
+            path: this.path,
             inventory: this.inventory,
             state: this.state,
             actionTarget: this.actionTarget, // Save the action target
@@ -134,6 +136,8 @@ export class Player {
             this.isPositioned = true; // Loaded state implies positioned
         }
         
+        this.path = state.path || [];
+
         // Load energyTimestamps
         if (state.energyTimestamps && Array.isArray(state.energyTimestamps)) {
             this.energyTimestamps = state.energyTimestamps;

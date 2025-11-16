@@ -1,7 +1,8 @@
 import { PLAYER_STATE } from './player-state.js';
 import { TILE_TYPE } from './map-tile-types.js';
 import { AudioManager } from './audio-manager.js';
-import { updateWander, updateMoveToTarget } from './player-movement.js';
+import { updateWander, updateMoveToTarget, updateFollowPath } from './player-movement.js';
+import { findPath } from './pathfinding.js';
 
 function beginChopping(player) {
     player.state = PLAYER_STATE.CHOPPING;
@@ -50,9 +51,23 @@ function finishChopping(player, gameMap) {
         }
     }
 
-    player.state = PLAYER_STATE.MOVING_TO_LOGS;
-    player.targetX = player.actionTarget.x;
-    player.targetY = player.actionTarget.y;
+    player.state = PLAYER_STATE.IDLE; // Reset state before pathfinding
+    const startX = Math.round(player.pixelX);
+    const startY = Math.round(player.pixelY);
+    const path = findPath(startX, startY, player.actionTarget.x, player.actionTarget.y, gameMap);
+
+    if(path) {
+        player.path = path;
+        player.state = PLAYER_STATE.MOVING_TO_LOGS;
+    } else {
+        console.warn(`[${player.username}] No path found to logs at (${player.actionTarget.x}, ${player.actionTarget.y}).`);
+        // Maybe try finding another task or just idle
+        if (player.activeCommand === 'gather') {
+            startGatheringCycle(player, gameMap);
+        } else {
+            harvestNextBush(player, gameMap); // Try to harvest bushes if any are pending
+        }
+    }
 }
 
 function beginHarvestingLogs(player) {
@@ -81,9 +96,18 @@ function finishHarvestingLogs(player, gameMap) {
 function harvestNextBush(player, gameMap) {
     if(player.pendingHarvest.length > 0) {
         player.actionTarget = player.pendingHarvest.shift();
-        player.state = PLAYER_STATE.MOVING_TO_BUSHES;
-        player.targetX = player.actionTarget.x;
-        player.targetY = player.actionTarget.y;
+        
+        const startX = Math.round(player.pixelX);
+        const startY = Math.round(player.pixelY);
+        const path = findPath(startX, startY, player.actionTarget.x, player.actionTarget.y, gameMap);
+        
+        if (path) {
+            player.path = path;
+            player.state = PLAYER_STATE.MOVING_TO_BUSHES;
+        } else {
+            console.warn(`[${player.username}] No path found to bush at (${player.actionTarget.x}, ${player.actionTarget.y}). Skipping.`);
+            harvestNextBush(player, gameMap); // Try next bush
+        }
     } else {
         findAndMoveToTree(player, gameMap);
     }
@@ -125,15 +149,28 @@ export function startGatheringCycle(player, gameMap) {
 
     if (nearest) {
         player.actionTarget = nearest;
-        player.targetX = nearest.x;
-        player.targetY = nearest.y;
         
-        if (nearest.type === TILE_TYPE.LOGS) {
-            player.state = PLAYER_STATE.MOVING_TO_LOGS;
-        } else if (nearest.type === TILE_TYPE.BUSHES) {
-            player.state = PLAYER_STATE.MOVING_TO_BUSHES;
+        const startX = Math.round(player.pixelX);
+        const startY = Math.round(player.pixelY);
+        const endX = nearest.x;
+        const endY = nearest.y;
+        
+        const path = findPath(startX, startY, endX, endY, gameMap);
+        
+        if (path) {
+            player.path = path;
+            if (nearest.type === TILE_TYPE.LOGS) {
+                player.state = PLAYER_STATE.MOVING_TO_LOGS;
+            } else if (nearest.type === TILE_TYPE.BUSHES) {
+                player.state = PLAYER_STATE.MOVING_TO_BUSHES;
+            }
+            console.log(`[${player.username}] Found gatherable at (${nearest.x}, ${nearest.y}). Path found. Moving to harvest.`);
+        } else {
+            console.log(`[${player.username}] Found gatherable at (${nearest.x}, ${nearest.y}), but no path exists. Searching again.`);
+            // This could be improved by blacklisting this target for a while
+            player.state = PLAYER_STATE.WANDERING_TO_GATHER;
+            player.lastSearchPosition = { x: player.pixelX, y: player.pixelY };
         }
-        console.log(`[${player.username}] Found gatherable at (${nearest.x}, ${nearest.y}). Moving to harvest.`);
     } else {
         console.log(`[${player.username}] No gatherables found within ${searchRadius} tiles. Wandering...`);
         player.state = PLAYER_STATE.WANDERING_TO_GATHER;
@@ -171,11 +208,18 @@ export function setChopTarget(player, gameMap, treeCoords) {
     }
     
     if(bestSpot) {
-       // Move to the edge of the tile, closer to the tree
-       player.targetX = bestSpot.x + (treeCoords.x - bestSpot.x) * 0.4;
-       player.targetY = bestSpot.y + (treeCoords.y - bestSpot.y) * 0.4;
-       player.state = PLAYER_STATE.MOVING_TO_TREE;
-       console.log(`[${player.username}] Set target for tree at (${treeCoords.x}, ${treeCoords.y}). Moving to (${player.targetX.toFixed(2)}, ${player.targetY.toFixed(2)}).`);
+       const startX = Math.round(player.pixelX);
+       const startY = Math.round(player.pixelY);
+       const path = findPath(startX, startY, bestSpot.x, bestSpot.y, gameMap);
+       
+       if (path) {
+           player.path = path;
+           player.state = PLAYER_STATE.MOVING_TO_TREE;
+           console.log(`[${player.username}] Set target for tree at (${treeCoords.x}, ${treeCoords.y}). Path found. Moving to chop.`);
+       } else {
+           console.warn(`[${player.username}] Tree at (${treeCoords.x}, ${treeCoords.y}) is reachable at (${bestSpot.x}, ${bestSpot.y}), but no path found.`);
+           player.state = PLAYER_STATE.IDLE;
+       }
     } else {
         console.log(`[${player.username}] Tree at (${treeCoords.x}, ${treeCoords.y}) is surrounded. Can't chop.`);
         player.state = PLAYER_STATE.IDLE;
@@ -183,8 +227,7 @@ export function setChopTarget(player, gameMap, treeCoords) {
 }
 
 export function updateAction(player, deltaTime, gameMap) {
-    const atMoveTarget = Math.sqrt((player.pixelX - player.targetX)**2 + (player.pixelY - player.targetY)**2) < 0.05;
-    const atActionTarget = player.actionTarget && Math.round(player.pixelX) === player.actionTarget.x && Math.round(player.pixelY) === player.actionTarget.y;
+    const atMoveTarget = player.path.length === 0;
 
     switch (player.state) {
         case PLAYER_STATE.IDLE:
@@ -192,15 +235,29 @@ export function updateAction(player, deltaTime, gameMap) {
             break;
         
         case PLAYER_STATE.MOVING_TO_TREE:
-            updateMoveToTarget(player, deltaTime, gameMap);
+            updateFollowPath(player, deltaTime, gameMap);
             if (atMoveTarget) {
-                beginChopping(player);
+                // To make chopping feel right, we do a final small move towards the tree itself.
+                const finalTargetX = player.actionTarget.x;
+                const finalTargetY = player.actionTarget.y;
+                const currentSpotX = Math.round(player.pixelX);
+                const currentSpotY = Math.round(player.pixelY);
+                player.targetX = currentSpotX + (finalTargetX - currentSpotX) * 0.4;
+                player.targetY = currentSpotY + (finalTargetY - currentSpotY) * 0.4;
+                
+                const distToFinalAdjust = Math.sqrt((player.pixelX - player.targetX)**2 + (player.pixelY - player.targetY)**2);
+
+                if (distToFinalAdjust > 0.05) {
+                    updateMoveToTarget(player, deltaTime, gameMap);
+                } else {
+                     beginChopping(player);
+                }
             }
             break;
         case PLAYER_STATE.MOVING_TO_LOGS:
         case PLAYER_STATE.MOVING_TO_BUSHES:
-            updateMoveToTarget(player, deltaTime, gameMap);
-            if (atActionTarget) {
+            updateFollowPath(player, deltaTime, gameMap);
+            if (atMoveTarget) {
                 if (player.state === PLAYER_STATE.MOVING_TO_LOGS) beginHarvestingLogs(player);
                 else if (player.state === PLAYER_STATE.MOVING_TO_BUSHES) beginHarvestingBushes(player);
             }

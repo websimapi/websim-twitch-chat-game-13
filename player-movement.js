@@ -7,6 +7,46 @@ export function updateWander(player, deltaTime, gameMap) {
     updateMoveToTarget(player, deltaTime, gameMap);
 }
 
+export function updateFollowPath(player, deltaTime, gameMap) {
+    if (player.path.length === 0) {
+        // Snap to grid if movement is complete to avoid slight offsets
+        const finalTarget = player.actionTarget || { x: player.targetX, y: player.targetY };
+        const dx = finalTarget.x - player.pixelX;
+        const dy = finalTarget.y - player.pixelY;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+
+        if (dist > 0.01 && dist < 1) { // Only snap if close to final destination
+             const moveAmount = player.speed * deltaTime;
+             const nextPixelX = player.pixelX + (dx / dist) * moveAmount;
+             const nextPixelY = player.pixelY + (dy / dist) * moveAmount;
+             player.pixelX = nextPixelX;
+             player.pixelY = nextPixelY;
+        } else if (dist <= 0.01) {
+            player.pixelX = Math.round(player.pixelX);
+            player.pixelY = Math.round(player.pixelY);
+        }
+        return;
+    }
+
+    // Set the current target to the next waypoint in the path
+    const nextWaypoint = player.path[0];
+    player.targetX = nextWaypoint.x;
+    player.targetY = nextWaypoint.y;
+
+    // Move towards the waypoint
+    updateMoveToTarget(player, deltaTime, gameMap);
+
+    // Check if we've reached the waypoint
+    const dx = player.targetX - player.pixelX;
+    const dy = player.targetY - player.pixelY;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+
+    if (dist < 0.05) {
+        // Reached the waypoint, remove it from the path
+        player.path.shift();
+    }
+}
+
 export function updateMoveToTarget(player, deltaTime, gameMap) {
     const dx = player.targetX - player.pixelX;
     const dy = player.targetY - player.pixelY;
