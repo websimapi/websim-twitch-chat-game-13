@@ -1,6 +1,7 @@
 import { Player } from './player.js';
 import { Map as GameMap } from './map.js';
 import { startChoppingCycle, startGatheringCycle } from './player-actions.js';
+import { AudioManager } from './audio-manager.js';
 
 const PLAYERS_STORAGE_PREFIX = 'twitch_game_players_';
 const MAP_STORAGE_PREFIX = 'twitch_game_map_';
