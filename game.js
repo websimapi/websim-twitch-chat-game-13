@@ -306,6 +306,11 @@ export class Game {
             }
         }
         
+        // Update AudioManager with the listener's position (center of the screen in world coordinates)
+        const listenerX = cameraX + this.canvas.width / 2;
+        const listenerY = cameraY + this.canvas.height / 2;
+        AudioManager.setListenerPosition(listenerX, listenerY, tileSize);
+        
         const { drawStartX, drawEndX, drawStartY, drawEndY } = this.getVisibleTileRange(cameraX, cameraY);
         this.map.renderBase(this.ctx, cameraX, cameraY, drawStartX, drawEndX, drawStartY, drawEndY);
 

@@ -11,7 +11,7 @@ function beginChopping(player) {
 
 function finishChopping(player, gameMap) {
     const chopSound = AudioManager.getBuffer('./tree_fall.mp3');
-    AudioManager.play(chopSound);
+    AudioManager.play(chopSound, player.actionTarget.x, player.actionTarget.y);
 
     const treeX = player.actionTarget.x;
     const treeY = player.actionTarget.y;
@@ -223,7 +223,7 @@ export function updateAction(player, deltaTime, gameMap) {
                 finishChopping(player, gameMap);
             } else if (Math.floor(player.actionTimer) % 2 === 0 && Math.floor(player.actionTimer + deltaTime) % 2 !== 0) {
                  const chopSound = AudioManager.getBuffer('./chop.mp3');
-                 AudioManager.play(chopSound);
+                 AudioManager.play(chopSound, player.pixelX, player.pixelY);
             }
             break;
         
