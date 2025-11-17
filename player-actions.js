@@ -341,8 +341,8 @@ function updateFollow(player, gameMap, allPlayers, deltaTime) {
                         const spotX = targetX + i;
                         const spotY = targetY + j;
 
-                        if (spotX >= 0 && spotX < gameMap.width && spotY >= 0 && spotY < gameMap.height && !gameMap.isCollidingForPathfinding(spotX, spotY)) {
-                            const path = findPath(startX, startY, spotX, spotY, gameMap, true);
+                        if (spotX >= 0 && spotX < gameMap.width && spotY >= 0 && spotY < gameMap.height && !gameMap.isColliding(spotX, spotY)) {
+                            const path = findPath(startX, startY, spotX, spotY, gameMap);
                             if (path && path.length < minPathLength) {
                                 minPathLength = path.length;
                                 bestSpot = path;
