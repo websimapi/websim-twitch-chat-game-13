@@ -181,6 +181,26 @@ export class Player {
 
     // New method to validate state after map is loaded
     validateState(gameMap) {
+        // Validate player position first
+        const currentGridX = Math.round(this.pixelX);
+        const currentGridY = Math.round(this.pixelY);
+
+        if (
+            currentGridX < 0 || currentGridX >= gameMap.width ||
+            currentGridY < 0 || currentGridY >= gameMap.height ||
+            gameMap.isColliding(currentGridX, currentGridY)
+        ) {
+            console.warn(`[${this.username}] Invalid or occupied position on load (${this.pixelX.toFixed(2)}, ${this.pixelY.toFixed(2)}). Finding a new spot.`);
+            this.isPositioned = false; // Reset positioned flag
+            this.setInitialPosition(gameMap);
+            console.log(`[${this.username}] Relocated to (${this.pixelX.toFixed(2)}, ${this.pixelY.toFixed(2)}).`);
+            // After repositioning, reset state to avoid conflicts with old invalid targets
+            this.state = PLAYER_STATE.IDLE;
+            this.actionTarget = null;
+            this.path = [];
+            return; // Exit validation early as state has been reset
+        }
+
         const stateToTileType = {
             [PLAYER_STATE.MOVING_TO_TREE]: TILE_TYPE.TREE,
             [PLAYER_STATE.CHOPPING]: TILE_TYPE.TREE,
