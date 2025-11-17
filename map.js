@@ -123,23 +123,6 @@ export class Map {
         return this.grid[gridY][gridX] === TILE_TYPE.TREE;
     }
 
-    isCollidingForPathfinding(gridX, gridY) {
-        // This is a special collision check for pathfinding that allows moving through the "top" of a tree tile
-        // to create a better sense of depth and avoid getting stuck.
-        if (gridX < 0 || gridX >= this.width || gridY < 0 || gridY >= this.height) {
-            return true;
-        }
-
-        // The tile itself is a tree
-        const isTree = this.grid[gridY][gridX] === TILE_TYPE.TREE;
-        if (!isTree) return false;
-
-        // Check if the tile below is also a tree (the "trunk" part is impassable)
-        const isTrunkBelow = gridY + 1 < this.height && this.grid[gridY + 1][gridX] === TILE_TYPE.TREE;
-        
-        return isTrunkBelow;
-    }
-
     findAll(tileTypes) {
         if (!Array.isArray(tileTypes)) tileTypes = [tileTypes];
         const locations = [];

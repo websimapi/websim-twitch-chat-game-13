@@ -1,4 +1,4 @@
-function findPath(startX, startY, endX, endY, map, isFollowing = false) {
+function findPath(startX, startY, endX, endY, map) {
     const openSet = new Set();
     const closedSet = new Set();
     const cameFrom = new Map();
@@ -33,7 +33,7 @@ function findPath(startX, startY, endX, endY, map, isFollowing = false) {
 
         const [currentX, currentY] = current.split(',').map(Number);
 
-        const neighbors = getNeighbors(currentX, currentY, map, isFollowing);
+        const neighbors = getNeighbors(currentX, currentY, map);
 
         for (const neighbor of neighbors) {
             const neighborNode = `${neighbor.x},${neighbor.y}`;
@@ -62,7 +62,7 @@ function heuristic(x1, y1, x2, y2) {
     return Math.abs(x1 - x2) + Math.abs(y1 - y2); // Manhattan distance
 }
 
-function getNeighbors(x, y, map, isFollowing) {
+function getNeighbors(x, y, map) {
     const neighbors = [];
     const directions = [
         { dx: 0, dy: -1 }, // up
@@ -75,12 +75,7 @@ function getNeighbors(x, y, map, isFollowing) {
         const newX = x + dir.dx;
         const newY = y + dir.dy;
 
-        let collisionCheck = map.isColliding(newX, newY);
-        if (isFollowing) {
-            collisionCheck = map.isCollidingForPathfinding(newX, newY);
-        }
-
-        if (newX >= 0 && newX < map.width && newY >= 0 && newY < map.height && !collisionCheck) {
+        if (newX >= 0 && newX < map.width && newY >= 0 && newY < map.height && !map.isColliding(newX, newY)) {
             neighbors.push({ x: newX, y: newY });
         }
     }
