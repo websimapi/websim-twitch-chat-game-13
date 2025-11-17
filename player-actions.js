@@ -119,7 +119,13 @@ function harvestNextBush(player, gameMap) {
         if (player.activeCommand === 'follow') {
             player.state = PLAYER_STATE.FOLLOWING;
         } else {
-            findAndMoveToTree(player, gameMap);
+            // If the original command was chop, continue chopping.
+            // Otherwise, idle. This handles cases where user was just gathering bushes from a tree fall.
+            if (player.activeCommand === 'chop') {
+                findAndMoveToTree(player, gameMap);
+            } else {
+                player.state = PLAYER_STATE.IDLE;
+            }
         }
     }
 }
