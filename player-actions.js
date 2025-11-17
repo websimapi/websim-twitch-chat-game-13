@@ -96,6 +96,7 @@ function finishHarvestingLogs(player, gameMap) {
     } else if (player.activeCommand === 'follow') {
         player.state = PLAYER_STATE.FOLLOWING;
     } else {
+        player.path = []; // Clear path before trying to harvest bushes
         harvestNextBush(player, gameMap);
     }
 }
