@@ -123,6 +123,20 @@ export class Map {
         return this.grid[gridY][gridX] === TILE_TYPE.TREE;
     }
 
+    findAll(tileTypes) {
+        if (!Array.isArray(tileTypes)) tileTypes = [tileTypes];
+        const locations = [];
+        for (let j = 0; j < this.height; j++) {
+            for (let i = 0; i < this.width; i++) {
+                const tileType = this.grid[j][i];
+                if (tileTypes.includes(tileType)) {
+                    locations.push({ x: i, y: j, type: tileType });
+                }
+            }
+        }
+        return locations;
+    }
+
     findNearest(x, y, tileType) {
         let nearest = null;
         let minDistance = Infinity;

@@ -70,12 +70,8 @@ function finishChopping(player, gameMap) {
         player.state = PLAYER_STATE.MOVING_TO_LOGS;
     } else {
         console.warn(`[${player.username}] No path found to logs at (${player.actionTarget.x}, ${player.actionTarget.y}).`);
-        // Maybe try finding another task or just idle
-        if (player.activeCommand === 'gather') {
-            startGatheringCycle(player, gameMap);
-        } else {
-            harvestNextBush(player, gameMap); // Try to harvest bushes if any are pending
-        }
+        // The logs from the tree are unreachable. Harvest pending bushes instead.
+        harvestNextBush(player, gameMap);
     }
 }
 
@@ -97,6 +93,8 @@ function finishHarvestingLogs(player, gameMap) {
     
     if (player.activeCommand === 'gather') {
         startGatheringCycle(player, gameMap);
+    } else if (player.activeCommand === 'follow') {
+        player.state = PLAYER_STATE.FOLLOWING;
     } else {
         harvestNextBush(player, gameMap);
     }
@@ -158,48 +156,113 @@ export function startGatheringCycle(player, gameMap) {
     player.state = PLAYER_STATE.SEARCHING_FOR_GATHERABLE;
     console.log(`[${player.username}] Starting gathering cycle, searching for resources.`);
     
-    const searchRadius = 16;
     const gatherableTypes = [TILE_TYPE.LOGS, TILE_TYPE.BUSHES];
-    const nearest = gameMap.findNearestInRadius(player.pixelX, player.pixelY, gatherableTypes, searchRadius);
+    const allGatherables = gameMap.findAll(gatherableTypes);
 
-    if (nearest) {
-        player.actionTarget = nearest;
+    if (allGatherables.length === 0) {
+        console.log(`[${player.username}] No gatherables found on the map. Wandering...`);
+        player.state = PLAYER_STATE.WANDERING_TO_GATHER;
+        player.lastSearchPosition = { x: player.pixelX, y: player.pixelY };
+        return;
+    }
+
+    allGatherables.sort((a, b) => {
+        const distA = (a.x - player.pixelX)**2 + (a.y - player.pixelY)**2;
+        const distB = (b.x - player.pixelX)**2 + (b.y - player.pixelY)**2;
+        return distA - distB;
+    });
+
+    const MAX_GATHERABLES_TO_CHECK = 10;
+    let pathFound = false;
+
+    for (let i = 0; i < allGatherables.length && i < MAX_GATHERABLES_TO_CHECK; i++) {
+        const target = allGatherables[i];
         
         const startX = Math.round(player.pixelX);
         const startY = Math.round(player.pixelY);
-        const endX = nearest.x;
-        const endY = nearest.y;
-        
+        const endX = target.x;
+        const endY = target.y;
+
         const path = findPath(startX, startY, endX, endY, gameMap);
         
         if (path) {
+            player.actionTarget = target;
             player.path = path;
-            if (nearest.type === TILE_TYPE.LOGS) {
+            if (target.type === TILE_TYPE.LOGS) {
                 player.state = PLAYER_STATE.MOVING_TO_LOGS;
-            } else if (nearest.type === TILE_TYPE.BUSHES) {
+            } else if (target.type === TILE_TYPE.BUSHES) {
                 player.state = PLAYER_STATE.MOVING_TO_BUSHES;
             }
-            console.log(`[${player.username}] Found gatherable at (${nearest.x}, ${nearest.y}). Path found. Moving to harvest.`);
-        } else {
-            console.log(`[${player.username}] Found gatherable at (${nearest.x}, ${nearest.y}), but no path exists. Searching again.`);
-            // This could be improved by blacklisting this target for a while
-            player.state = PLAYER_STATE.WANDERING_TO_GATHER;
-            player.lastSearchPosition = { x: player.pixelX, y: player.pixelY };
+            console.log(`[${player.username}] Found pathable gatherable at (${target.x}, ${target.y}). Moving to harvest.`);
+            pathFound = true;
+            break;
         }
-    } else {
-        console.log(`[${player.username}] No gatherables found within ${searchRadius} tiles. Wandering...`);
+    }
+    
+    if (!pathFound) {
+        console.log(`[${player.username}] No reachable gatherables found. Wandering...`);
         player.state = PLAYER_STATE.WANDERING_TO_GATHER;
         player.lastSearchPosition = { x: player.pixelX, y: player.pixelY };
     }
 }
 
 export function findAndMoveToTree(player, gameMap) {
-    const nearestTree = gameMap.findNearest(player.pixelX, player.pixelY, TILE_TYPE.TREE);
-    if (nearestTree) {
-        player.actionTarget = nearestTree;
-        setChopTarget(player, gameMap, nearestTree);
-    } else {
+    const allTrees = gameMap.findAll([TILE_TYPE.TREE]);
+    if (allTrees.length === 0) {
         console.log(`[${player.username}] No trees found.`);
+        player.state = PLAYER_STATE.IDLE;
+        return;
+    }
+
+    // Sort trees by distance from player
+    allTrees.sort((a, b) => {
+        const distA = (a.x - player.pixelX)**2 + (a.y - player.pixelY)**2;
+        const distB = (b.x - player.pixelX)**2 + (b.y - player.pixelY)**2;
+        return distA - distB;
+    });
+
+    const MAX_TREES_TO_CHECK = 10;
+    let pathFound = false;
+
+    for (let i = 0; i < allTrees.length && i < MAX_TREES_TO_CHECK; i++) {
+        const treeCoords = allTrees[i];
+        
+        let bestSpot = null;
+        let minDistance = Infinity;
+        // Find best spot to stand next to the tree
+        for(let dx = -1; dx <= 1; dx++) {
+            for(let dy = -1; dy <= 1; dy++) {
+                if(dx === 0 && dy === 0) continue;
+                const spotX = treeCoords.x + dx;
+                const spotY = treeCoords.y + dy;
+                if(!gameMap.isColliding(spotX, spotY)) {
+                    const dist = (spotX - player.pixelX)**2 + (spotY - player.pixelY)**2;
+                    if(dist < minDistance) {
+                       minDistance = dist;
+                       bestSpot = {x: spotX, y: spotY};
+                    }
+                }
+            }
+        }
+        
+        if(bestSpot) {
+           const startX = Math.round(player.pixelX);
+           const startY = Math.round(player.pixelY);
+           const path = findPath(startX, startY, bestSpot.x, bestSpot.y, gameMap);
+           
+           if (path) {
+               player.actionTarget = treeCoords;
+               player.path = path;
+               player.state = PLAYER_STATE.MOVING_TO_TREE;
+               console.log(`[${player.username}] Found pathable tree at (${treeCoords.x}, ${treeCoords.y}). Moving to chop.`);
+               pathFound = true;
+               break; // Exit the loop since we found a valid tree and path
+           }
+        }
+    }
+
+    if (!pathFound) {
+        console.warn(`[${player.username}] Checked ${Math.min(allTrees.length, MAX_TREES_TO_CHECK)} nearest trees, but none are reachable. Idling.`);
         player.state = PLAYER_STATE.IDLE;
     }
 }
