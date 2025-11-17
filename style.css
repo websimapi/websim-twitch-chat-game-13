@@ -79,6 +79,15 @@ body, html {
     gap: 20px;
     width: 100%;
     max-width: 1200px;
+    margin-bottom: 20px;
+}
+
+#world-actions-container {
+    display: flex;
+    gap: 20px;
+    justify-content: center;
+    width: 100%;
+    max-width: 1200px;
 }
 
 .world-item {
@@ -114,6 +123,13 @@ body, html {
 
 .world-item.new-world .plus-icon {
     font-size: 48px;
+    line-height: 1;
+    margin-bottom: 10px;
+    color: #888;
+}
+
+.world-item.new-world .import-icon {
+    font-size: 40px;
     line-height: 1;
     margin-bottom: 10px;
     color: #888;
