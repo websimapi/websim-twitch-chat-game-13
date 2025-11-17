@@ -2,6 +2,7 @@ import { PLAYER_STATE } from './player-state.js';
 import { updateAction, startChoppingCycle, setChopTarget, startGatheringCycle } from './player-actions.js';
 import { renderPlayer } from './player-renderer.js';
 import { TILE_TYPE } from './map-tile-types.js';
+import { findPath } from './pathfinding.js';
 
 export const ENERGY_DURATION_MS = 3600 * 1000; // 1 hour (3600 seconds)
 
@@ -201,15 +202,25 @@ export class Player {
                 console.warn(`[${this.username}] Invalid target for state ${this.state}. Target tile at (${target?.x}, ${target?.y}) is missing or incorrect. Resetting to IDLE.`);
                 this.state = PLAYER_STATE.IDLE;
                 this.actionTarget = null;
+                this.path = []; // Clear the path as well
             } else {
                 // Target is valid, re-initialize movement if needed
                 if (this.state === PLAYER_STATE.MOVING_TO_TREE) {
                     console.log(`[${this.username}] Re-initializing move target for state ${this.state}.`);
                     setChopTarget(this, gameMap, this.actionTarget);
                 } else if (this.state === PLAYER_STATE.MOVING_TO_LOGS || this.state === PLAYER_STATE.MOVING_TO_BUSHES) {
-                    console.log(`[${this.username}] Re-initializing move target for state ${this.state}.`);
-                    this.targetX = this.actionTarget.x;
-                    this.targetY = this.actionTarget.y;
+                    console.log(`[${this.username}] Re-calculating path for state ${this.state}.`);
+                    const startX = Math.round(this.pixelX);
+                    const startY = Math.round(this.pixelY);
+                    const path = findPath(startX, startY, this.actionTarget.x, this.actionTarget.y, gameMap);
+                    if (path) {
+                        this.path = path;
+                    } else {
+                        console.warn(`[${this.username}] Path to valid target for ${this.state} is blocked. Resetting.`);
+                        this.state = PLAYER_STATE.IDLE;
+                        this.actionTarget = null;
+                        this.path = [];
+                    }
                 }
             }
         }

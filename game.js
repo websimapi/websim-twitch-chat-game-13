@@ -150,10 +150,6 @@ export class Game {
         const player = this.players.get(userId);
         if (!player) return;
 
-        // Reset path and target when a new command is issued to prevent conflicts.
-        player.path = [];
-        player.actionTarget = null;
-
         if (!player.isPowered()) {
              console.log(`Player ${player.username} issued command "${command}" but has no energy.`);
              // Allow setting the command even without energy, it will start when they get some.
