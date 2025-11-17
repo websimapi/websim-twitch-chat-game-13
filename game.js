@@ -2,6 +2,7 @@ import { Player } from './player.js';
 import { Map as GameMap } from './map.js';
 import { startChoppingCycle, startGatheringCycle } from './player-actions.js';
 import { AudioManager } from './audio-manager.js';
+import { PLAYER_STATE } from './player-state.js';
 
 const PLAYERS_STORAGE_PREFIX = 'twitch_game_players_';
 const MAP_STORAGE_PREFIX = 'twitch_game_map_';
@@ -145,12 +146,18 @@ export class Game {
         }
     }
 
-    handlePlayerCommand(userId, command) {
+    handlePlayerCommand(userId, command, args) {
         const player = this.players.get(userId);
         if (!player) return;
 
+        if (!player.isPowered()) {
+             console.log(`Player ${player.username} issued command "${command}" but has no energy.`);
+             // Allow setting the command even without energy, it will start when they get some.
+        }
+
         if (command === 'chop') {
             player.activeCommand = 'chop';
+            player.followTargetId = null;
             if (player.isPowered()) {
                 startChoppingCycle(player, this.map);
                 console.log(`Player ${player.username} initiated !chop command.`);
@@ -159,11 +166,50 @@ export class Game {
             }
         } else if (command === 'gather') {
             player.activeCommand = 'gather';
+            player.followTargetId = null;
             if (player.isPowered()) {
                 startGatheringCycle(player, this.map);
                 console.log(`Player ${player.username} initiated !gather command.`);
             } else {
                 console.log(`Player ${player.username} set !gather command. It will start when it has energy.`);
+            }
+        } else if (command === 'follow') {
+            let targetPlayer = null;
+            if (args && args.targetUsername) {
+                const targetUsernameLower = args.targetUsername.toLowerCase();
+                // Find any player, even offline, to store their ID. The follow logic will handle if they are powered or not.
+                targetPlayer = Array.from(this.players.values()).find(p => p.username.toLowerCase() === targetUsernameLower);
+                 if (!targetPlayer) {
+                    console.log(`[${player.username}] Could not find any player (online or off) named "${args.targetUsername}".`);
+                    return;
+                }
+            } else {
+                // Find nearest powered player
+                let minDistance = Infinity;
+                for (const otherPlayer of this.players.values()) {
+                    if (otherPlayer.id === player.id || !otherPlayer.isPowered()) continue;
+                    const dx = otherPlayer.pixelX - player.pixelX;
+                    const dy = otherPlayer.pixelY - player.pixelY;
+                    const distance = dx * dx + dy * dy;
+                    if (distance < minDistance) {
+                        minDistance = distance;
+                        targetPlayer = otherPlayer;
+                    }
+                }
+            }
+
+            if (targetPlayer) {
+                player.activeCommand = 'follow';
+                player.followTargetId = targetPlayer.id;
+                if (player.isPowered()) {
+                    player.state = PLAYER_STATE.FOLLOWING;
+                }
+                console.log(`[${player.username}] will now follow ${targetPlayer.username}.`);
+            } else {
+                console.log(`[${player.username}] Could not find anyone nearby to follow.`);
+                if (player.isPowered()) {
+                    player.state = PLAYER_STATE.IDLE;
+                }
             }
         }
     }
@@ -244,7 +290,7 @@ export class Game {
         this.map.update(this.players);
 
         for (const player of this.players.values()) {
-            player.update(deltaTime, this.map);
+            player.update(deltaTime, this.map, this.players);
         }
     }
     

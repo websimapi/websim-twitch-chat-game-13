@@ -55,6 +55,12 @@ export function initTwitch(channel, onChatter, onCommand) {
             if (onCommand) {
                 onCommand(userId, 'gather');
             }
+        } else if (command.startsWith('!follow')) {
+            if (onCommand) {
+                const parts = message.trim().split(/\s+/);
+                const targetUsername = parts.length > 1 ? parts[1].replace('@', '') : null;
+                onCommand(userId, 'follow', { targetUsername });
+            }
         }
     });
 }

@@ -4,6 +4,10 @@ import { AudioManager } from './audio-manager.js';
 import { updateWander, updateMoveToTarget, updateFollowPath } from './player-movement.js';
 import { findPath } from './pathfinding.js';
 
+const WOODCUTTING_STATES = [PLAYER_STATE.MOVING_TO_TREE, PLAYER_STATE.CHOPPING];
+const GATHERING_STATES = [PLAYER_STATE.MOVING_TO_LOGS, PLAYER_STATE.HARVESTING_LOGS, PLAYER_STATE.MOVING_TO_BUSHES, PLAYER_STATE.HARVESTING_BUSHES, PLAYER_STATE.SEARCHING_FOR_GATHERABLE, PLAYER_STATE.WANDERING_TO_GATHER];
+
+
 function beginChopping(player) {
     player.state = PLAYER_STATE.CHOPPING;
     player.actionTimer = 11; // 11 seconds to chop
@@ -49,6 +53,11 @@ function finishChopping(player, gameMap) {
             gameMap.grid[bushY][bushX] = TILE_TYPE.BUSHES;
             player.pendingHarvest.push({ x: bushX, y: bushY, type: TILE_TYPE.BUSHES });
         }
+    }
+
+    if (player.activeCommand === 'follow') {
+        player.state = PLAYER_STATE.FOLLOWING;
+        return;
     }
 
     player.state = PLAYER_STATE.IDLE; // Reset state before pathfinding
@@ -109,7 +118,11 @@ function harvestNextBush(player, gameMap) {
             harvestNextBush(player, gameMap); // Try next bush
         }
     } else {
-        findAndMoveToTree(player, gameMap);
+        if (player.activeCommand === 'follow') {
+            player.state = PLAYER_STATE.FOLLOWING;
+        } else {
+            findAndMoveToTree(player, gameMap);
+        }
     }
 }
 
@@ -129,6 +142,8 @@ function finishHarvestingBushes(player, gameMap) {
     
     if (player.activeCommand === 'gather') {
         startGatheringCycle(player, gameMap);
+    } else if (player.activeCommand === 'follow') {
+        player.state = PLAYER_STATE.FOLLOWING;
     } else {
         harvestNextBush(player, gameMap);
     }
@@ -226,7 +241,79 @@ export function setChopTarget(player, gameMap, treeCoords) {
     }
 }
 
-export function updateAction(player, deltaTime, gameMap) {
+function updateFollow(player, gameMap, allPlayers, deltaTime) {
+    const targetPlayer = allPlayers.get(player.followTargetId);
+
+    if (!targetPlayer || !targetPlayer.isPowered()) {
+        console.log(`[${player.username}] Follow target lost. Idling.`);
+        player.state = PLAYER_STATE.IDLE;
+        player.followTargetId = null;
+        player.activeCommand = null;
+        return;
+    }
+
+    const dx = targetPlayer.pixelX - player.pixelX;
+    const dy = targetPlayer.pixelY - player.pixelY;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+
+    // If too far, move closer
+    if (distance > 8) {
+        // Only find a new path if not already moving
+        if (player.path.length === 0) {
+            const startX = Math.round(player.pixelX);
+            const startY = Math.round(player.pixelY);
+            // Find a valid spot near the target
+            const targetX = Math.round(targetPlayer.pixelX);
+            const targetY = Math.round(targetPlayer.pixelY);
+
+            let bestSpot = null;
+            let minPathLength = Infinity;
+
+            for (let r = 1; r < 5; r++) {
+                 for (let i = -r; i <= r; i++) {
+                    for (let j = -(r-Math.abs(i)); j <= (r-Math.abs(i)); j++) {
+                        if(i === 0 && j === 0) continue;
+                        const spotX = targetX + i;
+                        const spotY = targetY + j;
+
+                        if (spotX >= 0 && spotX < gameMap.width && spotY >= 0 && spotY < gameMap.height && !gameMap.isColliding(spotX, spotY)) {
+                            const path = findPath(startX, startY, spotX, spotY, gameMap);
+                            if (path && path.length < minPathLength) {
+                                minPathLength = path.length;
+                                bestSpot = path;
+                            }
+                        }
+                    }
+                }
+                if (bestSpot) break; // Found a path in this radius
+            }
+
+            if (bestSpot) {
+                player.path = bestSpot;
+            } else {
+                 console.log(`[${player.username}] Can't find path to follow ${targetPlayer.username}. Idling for now.`);
+            }
+        }
+        updateFollowPath(player, deltaTime, gameMap);
+        return;
+    }
+    
+    // Within range, so stop moving
+    player.path = [];
+
+    // Mimic target's actions
+    if (WOODCUTTING_STATES.includes(targetPlayer.state)) {
+        startChoppingCycle(player, gameMap);
+    } else if (GATHERING_STATES.includes(targetPlayer.state)) {
+        startGatheringCycle(player, gameMap);
+    } else {
+        // Target is idle or wandering, so follower also wanders
+        updateWander(player, deltaTime, gameMap);
+    }
+}
+
+
+export function updateAction(player, deltaTime, gameMap, allPlayers) {
     const atMoveTarget = player.path.length === 0;
 
     switch (player.state) {
@@ -273,6 +360,10 @@ export function updateAction(player, deltaTime, gameMap) {
                 startGatheringCycle(player, gameMap);
             }
             break;
+        
+        case PLAYER_STATE.FOLLOWING:
+             updateFollow(player, gameMap, allPlayers, deltaTime);
+             break;
 
         case PLAYER_STATE.CHOPPING:
             player.actionTimer -= deltaTime;

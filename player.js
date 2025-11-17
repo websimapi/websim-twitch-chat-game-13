@@ -40,6 +40,7 @@ export class Player {
         this.inventory = { logs: [], leaves: [] };
         this.pendingHarvest = []; // {x, y, type} for bushes
         this.activeCommand = null;
+        this.followTargetId = null;
         this.lastSearchPosition = null; // For gathering wander logic
         this.skills = {
             woodcutting: [],
@@ -118,6 +119,7 @@ export class Player {
             actionTarget: this.actionTarget, // Save the action target
             pendingHarvest: this.pendingHarvest,
             activeCommand: this.activeCommand,
+            followTargetId: this.followTargetId,
             lastSearchPosition: this.lastSearchPosition,
             skills: this.skills,
         };
@@ -158,6 +160,7 @@ export class Player {
         this.pendingHarvest = state.pendingHarvest || [];
         this.skills = state.skills || { woodcutting: [], gathering: [] };
         this.activeCommand = state.activeCommand || null;
+        this.followTargetId = state.followTargetId || null;
         this.lastSearchPosition = state.lastSearchPosition || null;
 
         this.actionTarget = state.actionTarget || null; // Restore the action target
@@ -166,6 +169,11 @@ export class Player {
         // If restoring a chopping state, ensure the action target is valid.
         if (this.state === PLAYER_STATE.CHOPPING && !this.actionTarget) {
             console.warn(`[${this.username}] Restored to CHOPPING state without a valid actionTarget. Resetting to IDLE.`);
+            this.state = PLAYER_STATE.IDLE;
+        }
+
+        if (this.state === PLAYER_STATE.FOLLOWING && !this.followTargetId) {
+            console.warn(`[${this.username}] Restored to FOLLOWING state without a valid followTargetId. Resetting to IDLE.`);
             this.state = PLAYER_STATE.IDLE;
         }
     }
@@ -207,7 +215,7 @@ export class Player {
         }
     }
 
-    update(deltaTime, gameMap) {
+    update(deltaTime, gameMap, allPlayers) {
         
         if (this.isPowered()) {
             // 1. Energy Draining Logic
@@ -262,10 +270,13 @@ export class Player {
                 if (this.activeCommand === 'gather') {
                     this.startGatheringCycle(gameMap);
                 }
+                if (this.activeCommand === 'follow') {
+                    this.state = PLAYER_STATE.FOLLOWING;
+                }
             }
 
             // State Machine for actions
-            updateAction(this, deltaTime, gameMap);
+            updateAction(this, deltaTime, gameMap, allPlayers);
 
         }
     }
