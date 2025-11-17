@@ -1,4 +1,4 @@
-function findPath(startX, startY, endX, endY, map) {
+function findPath(startX, startY, endX, endY, map, isFollowing = false) {
     const openSet = new Set();
     const closedSet = new Set();
     const cameFrom = new Map();
@@ -33,7 +33,7 @@ function findPath(startX, startY, endX, endY, map) {
 
         const [currentX, currentY] = current.split(',').map(Number);
 
-        const neighbors = getNeighbors(currentX, currentY, map);
+        const neighbors = getNeighbors(currentX, currentY, map, isFollowing);
 
         for (const neighbor of neighbors) {
             const neighborNode = `${neighbor.x},${neighbor.y}`;
@@ -41,8 +41,7 @@ function findPath(startX, startY, endX, endY, map) {
                 continue;
             }
 
-            const moveCost = (currentX !== neighbor.x && currentY !== neighbor.y) ? 1.41 : 1;
-            const tentativeGScore = gScore.get(current) + moveCost;
+            const tentativeGScore = gScore.get(current) + 1;
 
             if (!openSet.has(neighborNode)) {
                 openSet.add(neighborNode);
@@ -60,36 +59,28 @@ function findPath(startX, startY, endX, endY, map) {
 }
 
 function heuristic(x1, y1, x2, y2) {
-    const dx = Math.abs(x1 - x2);
-    const dy = Math.abs(y1 - y2);
-    // Diagonal distance (Chebyshev distance adapted)
-    return (dx + dy) + (1.41 - 2) * Math.min(dx, dy);
+    return Math.abs(x1 - x2) + Math.abs(y1 - y2); // Manhattan distance
 }
 
-function getNeighbors(x, y, map) {
+function getNeighbors(x, y, map, isFollowing) {
     const neighbors = [];
     const directions = [
-        { dx: 0, dy: -1 }, // N
-        { dx: 1, dy: 0 },  // E
-        { dx: 0, dy: 1 },  // S
-        { dx: -1, dy: 0 }, // W
-        { dx: -1, dy: -1 }, // NW
-        { dx: 1, dy: -1 }, // NE
-        { dx: 1, dy: 1 },  // SE
-        { dx: -1, dy: 1 }  // SW
+        { dx: 0, dy: -1 }, // up
+        { dx: 0, dy: 1 },  // down
+        { dx: -1, dy: 0 }, // left
+        { dx: 1, dy: 0 },   // right
     ];
 
     for (const dir of directions) {
         const newX = x + dir.dx;
         const newY = y + dir.dy;
 
-        if (newX >= 0 && newX < map.width && newY >= 0 && newY < map.height && !map.isColliding(newX, newY)) {
-            // Check for corner cutting on diagonal moves
-            if (Math.abs(dir.dx) === 1 && Math.abs(dir.dy) === 1) {
-                if (map.isColliding(x + dir.dx, y) || map.isColliding(x, y + dir.dy)) {
-                    continue; // Skip this diagonal neighbor as it cuts a corner
-                }
-            }
+        let collisionCheck = map.isColliding(newX, newY);
+        if (isFollowing) {
+            collisionCheck = map.isCollidingForPathfinding(newX, newY);
+        }
+
+        if (newX >= 0 && newX < map.width && newY >= 0 && newY < map.height && !collisionCheck) {
             neighbors.push({ x: newX, y: newY });
         }
     }
