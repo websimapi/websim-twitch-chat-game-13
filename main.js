@@ -41,7 +41,11 @@ function populateWorldList(channel) {
         const worldEl = document.createElement('div');
         worldEl.className = 'world-item';
         
-        const playersData = localStorage.getItem(`${PLAYERS_STORAGE_PREFIX}${channel}_${worldName}`);
+        const playerDataKey = worldName === 'default' 
+            ? `${PLAYERS_STORAGE_PREFIX}${channel}`
+            : `${PLAYERS_STORAGE_PREFIX}${channel}_${worldName}`;
+            
+        const playersData = localStorage.getItem(playerDataKey);
         const playerCount = playersData ? Object.keys(JSON.parse(playersData)).length : 0;
 
         worldEl.innerHTML = `
