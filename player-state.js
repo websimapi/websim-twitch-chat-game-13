@@ -8,5 +8,6 @@ export const PLAYER_STATE = {
     HARVESTING_BUSHES: 'harvesting_bushes',
     SEARCHING_FOR_GATHERABLE: 'searching_for_gatherable',
     WANDERING_TO_GATHER: 'wandering_to_gather',
+    SEARCHING_FOR_TREE: 'searching_for_tree',
     FOLLOWING: 'following',
 };

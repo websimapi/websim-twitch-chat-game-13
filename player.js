@@ -265,12 +265,10 @@ export class Player {
             // If player is idle but has an active command, restart the task.
             if (this.state === PLAYER_STATE.IDLE && this.activeCommand) {
                 if (this.activeCommand === 'chop') {
-                    this.startChoppingCycle(gameMap);
-                }
-                if (this.activeCommand === 'gather') {
-                    this.startGatheringCycle(gameMap);
-                }
-                if (this.activeCommand === 'follow') {
+                    startChoppingCycle(this, gameMap);
+                } else if (this.activeCommand === 'gather') {
+                    startGatheringCycle(this, gameMap);
+                } else if (this.activeCommand === 'follow') {
                     this.state = PLAYER_STATE.FOLLOWING;
                 }
             }

@@ -148,7 +148,8 @@ function finishHarvestingBushes(player, gameMap) {
 }
 
 export function startChoppingCycle(player, gameMap) {
-    console.log(`[${player.username}] Starting chopping cycle. Timestamp: ${Date.now()}`);
+    player.state = PLAYER_STATE.SEARCHING_FOR_TREE;
+    console.log(`[${player.username}] Starting chopping cycle, searching for a tree. Timestamp: ${Date.now()}`);
     findAndMoveToTree(player, gameMap);
 }
 
@@ -262,8 +263,9 @@ export function findAndMoveToTree(player, gameMap) {
     }
 
     if (!pathFound) {
-        console.warn(`[${player.username}] Checked ${Math.min(allTrees.length, MAX_TREES_TO_CHECK)} nearest trees, but none are reachable. Idling.`);
-        player.state = PLAYER_STATE.IDLE;
+        console.warn(`[${player.username}] Checked ${Math.min(allTrees.length, MAX_TREES_TO_CHECK)} nearest trees, but none are reachable. Wandering to find a new spot.`);
+        player.lastSearchPosition = { x: player.pixelX, y: player.pixelY };
+        player.state = PLAYER_STATE.SEARCHING_FOR_TREE; // Stay in searching state to wander
     }
 }
 
@@ -384,6 +386,17 @@ export function updateAction(player, deltaTime, gameMap, allPlayers) {
             updateWander(player, deltaTime, gameMap);
             break;
         
+        case PLAYER_STATE.SEARCHING_FOR_TREE:
+             updateWander(player, deltaTime, gameMap);
+             const distFromTreeSearch = Math.sqrt(
+                (player.pixelX - player.lastSearchPosition.x)**2 +
+                (player.pixelY - player.lastSearchPosition.y)**2
+            );
+            if (distFromTreeSearch > 8) {
+                findAndMoveToTree(player, gameMap);
+            }
+            break;
+
         case PLAYER_STATE.MOVING_TO_TREE:
             updateFollowPath(player, deltaTime, gameMap);
             if (atMoveTarget) {
